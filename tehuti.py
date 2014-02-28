@@ -142,7 +142,22 @@ class Results(object):
     def __init__(self, results):
         self.results = results
 
-    def compare(self, start, end, single_id):
+    def compare(self, start, end=None, single_id=None):
+        """
+        Compare one commit to another, printing a % difference for each case.
+
+        Parameters
+        ----------
+        start : str
+            The commit from where to start the comparison
+        end : str or None, optional
+            The commit to compare against ``start``. If None, the commit
+            of the current working tree will be used
+            (from :func:`working_tree_id`).
+        single_id : str or None, optional
+            The ID of a single case to compare.
+
+        """
         start_sha = sha(start)
         if end is None:
             end_sha = working_tree_id()
@@ -163,7 +178,7 @@ class Results(object):
                 ratio = float(v2) / v1
                 print '    {} -> {} ({:.0f}%)'.format(v1, v2, ratio * 100)
 
-    def run(self, metrics, force, single_id):
+    def run(self, metrics, force=False, single_id=None):
         code_id = working_tree_id()
         run = False
         if force:
@@ -188,10 +203,21 @@ class Results(object):
 
     def save(self, name):
         path = Results.pkl_path(name)
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
         with open(path, 'wb') as f:
             json.dump(self.results, f, indent=4)
 
-    def summary(self, single_id):
+    def summary(self, single_id=None):
+        """
+        Print a summary of the test results.
+
+        Parameters
+        ----------
+        single_id - str
+            The ID of the metric to summarise.
+
+        """
         code_id = working_tree_id()
         results = self.results[code_id]
         for key, value in results.iteritems():
@@ -208,6 +234,57 @@ PKL_DIR = os.path.join(os.environ.get('XDG_DATA_HOME',
                        'tehuti')
 
 
+def main(metrics_module_name, ref_commit=None, target_commit=None,
+         force=False, single_id=None, repo_root=None):
+    """
+    Implements the command line interface for tehuti.
+
+    Parameters
+    ----------
+    metrics_module_name : str
+        The importable name of the module being measured. The module must
+        contain a ``metrics`` list.
+    ref_commit : str or None
+        The commit name of the reference commit. If None, the results for
+        target_commit will be outputted, rather than comparing with the
+        ``ref_commit``.
+    target_commit : str or None
+        The commit name of the . If None, the :meth:`Results.run` method
+        will be called, potentially re-computing the timings if they don't
+        already exist.
+    force : bool
+        Whether to force the re-running of the results, if target_commit is
+        not None.
+    single_id : str or None
+        The ID of a single case within the metrics to run the timings and/or
+        comparison for.
+    repo_root : str or None
+        The path of the repository being measured. If None the CWD will be
+        used.
+
+    """
+    metrics = __import__(metrics_module_name).metrics
+
+    try:
+        if repo_root is not None:
+            pwd = os.getcwd()
+            os.chdir(repo_root)
+
+        results = Results.load(metrics_module_name)
+        if target_commit is None:
+            results.run(metrics, force, single_id)
+            results.save(metrics_module_name)
+    
+        if ref_commit is not None:
+            results.compare(ref_commit, target_commit, single_id)
+        else:
+            results.summary(single_id)
+
+    finally:
+        if repo_root is not None:
+            os.chdir(pwd)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--force', action='store_true')
@@ -216,12 +293,4 @@ if __name__ == '__main__':
     parser.add_argument('ref_commit', nargs='?', metavar='reference commit')
     parser.add_argument('target_commit', nargs='?', metavar='target commit')
     options = parser.parse_args()
-    metrics = __import__(options.metrics).metrics
-    results = Results.load(options.metrics)
-    if options.target_commit is None:
-        results.run(metrics, options.force, options.id)
-        results.save(options.metrics)
-    if options.ref_commit:
-        results.compare(options.ref_commit, options.target_commit, options.id)
-    else:
-        results.summary(options.id)
+    main(options.metrics, options.ref_commit, options.target_commit, options.force, options.id)
