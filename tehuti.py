@@ -287,7 +287,7 @@ def main(metrics_module_name, ref_commit=None, target_commit=None,
         used.
 
     """
-    metrics = __import__(metrics_module_name).metrics
+    metrics = importlib.import_module(metrics_module_name).metrics
 
     if single_id is not None and single_id not in (metric.id() for
                                                    metric in metrics):
