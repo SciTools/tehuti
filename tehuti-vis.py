@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 from tehuti import Results, sha
 
 
-# Based on (minor label tweaks):
+# Based on (minor label tweaks and line plotting on single value input):
 # http://pyinsci.blogspot.co.uk/2009/09/violin-plot-with-matplotlib.html
 def violin_plot(ax,data,bp=False):
     '''
@@ -34,14 +34,20 @@ def violin_plot(ax,data,bp=False):
     dist = max(pos)-min(pos)
     w = min(0.15*max(dist,1.0),0.5)
     for d,p in zip(data,pos):
-        k = gaussian_kde(d) #calculates the kernel density
-        m = k.dataset.min() #lower bound of violin
-        M = k.dataset.max() #upper bound of violin
-        x = arange(m,M,(M-m)/100.) # support for violin
-        v = k.evaluate(x) #violin profile (density curve)
-        v = v/v.max()*w #scaling the violin to the available space
-        ax.fill_betweenx(x,p,v+p,facecolor='y',alpha=0.3)
-        ax.fill_betweenx(x,p,-v+p,facecolor='y',alpha=0.3)
+        # If we only have a single value, plot a line instead
+        try:
+            k = gaussian_kde(d) #calculates the kernel density
+        except ValueError:
+            ax.hlines(d, p-w, p+w)
+        else:
+            line = False
+            m = k.dataset.min() #lower bound of violin
+            M = k.dataset.max() #upper bound of violin
+            x = arange(m,M,(M-m)/100.) # support for violin
+            v = k.evaluate(x) #violin profile (density curve)
+            v = v/v.max()*w #scaling the violin to the available space
+            ax.fill_betweenx(x,p,v+p,facecolor='y',alpha=0.3)
+            ax.fill_betweenx(x,p,-v+p,facecolor='y',alpha=0.3)
     if bp:
         ax.boxplot(data,notch=1,positions=pos,vert=1)
 
