@@ -65,7 +65,7 @@ def plot(picked, single_id):
         labels = []
         data = []
         for commit, results in picked:
-            labels.append(commit)
+            labels.append(_short(commit))
             data.append(results[key])
         ax = plt.axes()
         ax.set_title(key)
