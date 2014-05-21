@@ -19,7 +19,7 @@ import argparse
 
 import matplotlib.pyplot as plt
 
-from tehuti import Results, sha
+from tehuti import Results, sha, shorten_sha
 
 
 # Based on (minor label tweaks and line plotting on single value input):
@@ -65,7 +65,7 @@ def plot(picked, single_id):
         labels = []
         data = []
         for commit, results in picked:
-            labels.append(_short(commit))
+            labels.append(shorten_sha(commit))
             data.append(results[key])
         ax = plt.axes()
         ax.set_title(key)
