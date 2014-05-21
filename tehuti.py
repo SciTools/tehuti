@@ -17,6 +17,7 @@
 # along with Tehuti.  If not, see <http://www.gnu.org/licenses/>.
 from abc import ABCMeta, abstractmethod
 import argparse
+import importlib
 import json
 import os
 import subprocess
@@ -234,6 +235,29 @@ PKL_DIR = os.path.join(os.environ.get('XDG_DATA_HOME',
                        'tehuti')
 
 
+def list_metrics(metrics_module_name, out=None):
+    """
+    Prints the available metrics within the named metrics module.
+
+    Args:
+
+    * metrics_module_name (string):
+        The importable name of the module being measured. The module must
+        contain a ``metrics`` list.
+
+    * out:
+        The file-like object to which the output is written. Defaults
+        to sys.stdout.
+
+    """
+    if out is None:
+        out = sys.stdout
+    metrics = importlib.import_module(metrics_module_name).metrics
+    out.write('Metrics in {!r}:\n'.format(metrics_module_name))
+    for metric in metrics:
+        out.write('    {}\n'.format(metric.id()))
+
+
 def main(metrics_module_name, ref_commit=None, target_commit=None,
          force=False, single_id=None, repo_root=None):
     """
@@ -263,7 +287,11 @@ def main(metrics_module_name, ref_commit=None, target_commit=None,
         used.
 
     """
-    metrics = __import__(metrics_module_name).metrics
+    metrics = importlib.import_module(metrics_module_name).metrics
+
+    if single_id is not None and single_id not in (metric.id() for
+                                                   metric in metrics):
+        raise ValueError('Unknown metric {!r}.'.format(single_id))
 
     try:
         if repo_root is not None:
@@ -287,10 +315,17 @@ def main(metrics_module_name, ref_commit=None, target_commit=None,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-l', '--list', action='store_true', default=False,
+                        help='list the metrics in the specified module')
     parser.add_argument('-f', '--force', action='store_true')
     parser.add_argument('-i', '--id', help='select a single metric by ID')
-    parser.add_argument('metrics')
+    parser.add_argument('metrics_module')
     parser.add_argument('ref_commit', nargs='?', metavar='reference commit')
     parser.add_argument('target_commit', nargs='?', metavar='target commit')
     options = parser.parse_args()
-    main(options.metrics, options.ref_commit, options.target_commit, options.force, options.id)
+
+    if options.list:
+        list_metrics(options.metrics_module)
+    else:
+        main(options.metrics_module, options.ref_commit, options.target_commit,
+             options.force, options.id)
