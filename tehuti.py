@@ -23,6 +23,7 @@ import os
 import subprocess
 import sys
 import timeit
+import warnings
 
 
 class Metric(object):
@@ -88,7 +89,9 @@ class PylintMetric(Metric):
         pylint = subprocess.Popen(cmd + [self.module], stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
         output, _ = pylint.communicate()
-        if pylint.returncode == 0:
+        # Pylint error codes 1 (fatal error) and 32 (user error) indicate a
+        # failed run.
+        if pylint.returncode not in [1, 32]:
             output = output.split('\n')
             rating = [line for line in output
                       if 'code has been rated at' in line]
@@ -97,6 +100,9 @@ class PylintMetric(Metric):
             # Possibly this should raise some sort of metric-failure
             # error, or just return a failure token which can be recorded
             # in the results cache.
+            msg = 'Pylint process failed with error code {}, defaulting code '\
+                  'rating to 0.'
+            warnings.warn(msg.format(pylint.returncode))
             rating = 0
         return rating
 
