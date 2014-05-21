@@ -106,6 +106,33 @@ def sha(name):
     return output.strip()
 
 
+def shorten_sha(sha):
+    """
+    Takes a long hex string (e.g. a git commit sha) and shortens it to
+    8 characters.
+
+    If the input value cannot be cast as a hex then the input is returned
+    unchanged.
+
+    Args:
+
+    * sha:
+        A hex string.
+
+    Returns:
+        The input shortened to 8 characters if input is a hex string, or input
+        if not.
+
+    """
+    try:
+        int(sha, 16)
+    except ValueError:
+        result = sha
+    else:
+        result = sha[:8]
+    return result
+
+
 def working_tree_id():
     try:
         id = sha('HEAD')
