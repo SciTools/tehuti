@@ -101,6 +101,73 @@ class PylintMetric(Metric):
         return rating
 
 
+class MemoryMetric(object):
+    class Context(object):
+        pass
+
+    def __init__(self, body, setup=None, repeat=100, number=1, name=None):
+        self.body = body
+        self.setup = setup
+        self.repeat = repeat
+        self.number = number
+        self.name = name
+
+        self.pid = os.getpid()
+        self._metrics = []
+        self._profiler_keys = ['vmpeak']
+        self._unit = 'mb'
+        self.resource_path = os.path.join('/', 'proc', str(self.pid), 'status')
+        self._usage_log = []
+        self._scale = {'b': float(2 ** 0),
+                       'kb': float(2 ** 10), 'kib': float(2 ** 10),
+                       'mb': float(2 ** 20), 'mib': float(2 ** 20),
+                       'gb': float(2 ** 30), 'gib': float(2 ** 30)}
+        self._profiler_scale = self._scale['kb']
+
+    @property
+    def usage_log(self):
+        return self._usage_log
+
+    def id(self):
+        return 'memoryuse-{}'.format(self.name or self.body.func_name)
+
+    def _outer(self, setup, func):
+        def _inner(_func=func):
+            if setup != 'pass':
+                setup()
+            self._metrics = []
+            for i in range(self.number):
+                _func()
+                self.memory_usage()
+        return _inner
+
+    def get_usage(self):
+        with open(self.resource_path) as lines:
+            for line in lines:
+                parts = line.split()
+                metric = parts[0][:-1].lower()
+                if metric in self._profiler_keys:
+                    metric = ((float(parts[1]) * self._profiler_scale) /
+                              self._scale[self._unit])
+                    self._metrics.append(metric)
+
+    def memory_usage(self):
+        self.get_usage()
+        self.usage_log.append(self._metrics)
+
+    def run(self):
+        context = MemoryMetric.Context()
+        if self.setup is not None:
+            setup = lambda: self.setup(context)
+        else:
+            setup = 'pass'
+        func = lambda: self.body(context)
+        runner = self._outer(setup, func)
+        for i in range(self.repeat):
+            runner()
+        return [sum(vals) / self.number for vals in self.usage_log]
+
+
 def sha(name):
     output = subprocess.check_output(['git', 'log', '-1', '--format=%H', name])
     return output.strip()
