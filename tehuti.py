@@ -24,6 +24,8 @@ import subprocess
 import sys
 import timeit
 
+import numpy as np
+
 
 class Metric(object):
     __metaclass__ = ABCMeta
@@ -166,6 +168,30 @@ class MemoryMetric(object):
         for i in range(self.repeat):
             runner()
         return [sum(vals) / self.number for vals in self.usage_log]
+
+
+class RMSErrorMetric(Metric):
+    class Context(object):
+        pass
+
+    def __init__(self, body, reference, setup=None, name=None):
+        self.body = body
+        self.reference = reference
+        self.setup = setup
+        self.name = name
+        self.log = []
+
+    def id(self):
+        return 'accuracy-{}'.format(self.name or self.body.func_name)
+
+    def run(self):
+        context = RMSErrorMetric.Context()
+        if self.setup is not None:
+            self.setup(context)
+        ref = self.reference()
+        result = self.body(context)
+        rms = np.sqrt(np.mean(np.square(ref - result)))
+        return rms
 
 
 def sha(name):
