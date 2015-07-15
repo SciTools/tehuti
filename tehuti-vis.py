@@ -34,9 +34,10 @@ class Vis(object):
 
         Args:
 
-        * results:
-            The benchmarking results to visualise.
-        * method:
+        * results: (dict)
+            The benchmarking results to visualise. Should be the dictionary of
+            benchmarking results loaded from a Tehuti metrics JSON file.
+        * method: (str)
             The visualisation method (state) to use. Available states are:
                 * 'basic': plot benchmark results against repository commits
                            for all supplied metrics.
@@ -51,8 +52,6 @@ class Vis(object):
 
     @property
     def method(self):
-        if self._method is None:
-            self._method = 'basic'
         return self.methods[self._method]
 
     @method.setter
@@ -60,7 +59,7 @@ class Vis(object):
         try:
             self._method = self.methods[value]
         except KeyError:
-            msg = 'Vis has no method {}.'
+            msg = 'Vis has no method {!r}.'
             raise AttributeError(msg.format(value))
 
     def select_data(self, commits=None, metrics=None):
@@ -68,12 +67,16 @@ class Vis(object):
         Select data to plot. Processing is handed off to the `select_data`
         method of the current state.
 
-        Args:
+        Kwargs:
 
          * commits:
             One or more valid repository commits that have been benchmarked.
+            If no commits are specified then all commits found in the
+            benchmarking results will be added to the data to visualise.
          * metrics:
             One or more metrics that have results in the metrics results file.
+            If no metrics are specified then all metrics found in the
+            benchmarking results will be added to the data to visualise.
 
         """
         self.plot_data = self.method.select_data(commits, metrics)
@@ -83,7 +86,7 @@ class Vis(object):
         Plot data. Plotting is handed off to the `plot` method of the current
         state.
 
-        Arg:
+        Kwarg:
 
         * alternate_plot:
             Toggle to select the alternate plotting mode of the `plot` method

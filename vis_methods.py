@@ -34,7 +34,7 @@ Y_AXIS_LABELS = {'timeit': 'Time (s)',
 class Visualiser(object):
     """The base class for visualiser states."""
 
-    def select_data(self, commit, metrics):
+    def _select_data_common(self, commit, metrics):
         if commit is None:
             commits = self.vis.results.keys()
         elif isinstance(commit, basestring):
@@ -52,6 +52,9 @@ class Visualiser(object):
             metrics = list(keys)
         return commits, metrics
 
+    def select_data(self, commit, metrics):
+        raise NotImplemented
+
     def plot(self, alternate_plot):
         raise NotImplemented
 
@@ -66,6 +69,17 @@ class VaryRepoCommit(Visualiser):
 
     """
     def __init__(self, vis):
+        """
+        A visualiser that provides functionality to visualise tehuti metric
+        results over a series of commits to an underlying GitHub repo.
+
+        Arg:
+
+        * vis:
+            The :class:`tehuti-vis.Vis` class that this class is providing
+            a visualiser state for.
+
+        """
         self.vis = vis
 
     def select_data(self, commits, metrics):
@@ -92,8 +106,7 @@ class VaryRepoCommit(Visualiser):
             The selected data formatted for plotting.
 
         """
-        commits, metrics = super(VaryRepoCommit, self).select_data(commits,
-                                                                   metrics)
+        commits, metrics = self._select_data_common(commits, metrics)
         data = {}
         for metric in metrics:
             data[metric] = {commit: 0 for commit in commits}
@@ -188,6 +201,21 @@ class Violin(Visualiser):
 
     """
     def __init__(self, vis):
+        """
+        A visualiser that provides functionality to visualise tehuti metric
+        results on a violin plot.
+
+        A violin plot is similar to a box plot but also shows the
+        probability density of values in the range of values covered by the
+        violin plot, which gives the plot the shape that inspired its name.
+
+        Arg:
+
+        * vis:
+            The :class:`tehuti-vis.Vis` class that this class is providing
+            a visualiser state for.
+
+        """
         self.vis = vis
 
     def select_data(self, commits, metrics):
@@ -214,7 +242,7 @@ class Violin(Visualiser):
             The selected data formatted for plotting.
 
         """
-        commits, metrics = super(Violin, self).select_data(commits, metrics)
+        commits, metrics = self._select_data_common(commits, metrics)
         data = {}
         for metric in metrics:
             data[metric] = {commit: 0 for commit in commits}
