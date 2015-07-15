@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# (C) British Crown Copyright 2014, Met Office
+# (C) British Crown Copyright 2014 - 2015, Met Office
 #
 # This file is part of Tehuti.
 #
@@ -17,78 +17,98 @@
 # along with Tehuti.  If not, see <http://www.gnu.org/licenses/>.
 import argparse
 
-import matplotlib.pyplot as plt
+from tehuti import Results
+from vis_methods import VaryRepoCommit, Violin
 
-from tehuti import Results, sha, shorten_sha
 
+class Vis(object):
+    """Provides functionality to visualise tehuti metrics results."""
 
-# Based on (minor label tweaks and line plotting on single value input):
-# http://pyinsci.blogspot.co.uk/2009/09/violin-plot-with-matplotlib.html
-def violin_plot(ax,data,bp=False):
-    '''
-    create violin plots on an axis
-    '''
-    from scipy.stats import gaussian_kde
-    from numpy import arange
-    pos = range(len(data))
-    dist = max(pos)-min(pos)
-    w = min(0.15*max(dist,1.0),0.5)
-    for d,p in zip(data,pos):
-        # If we only have a single value, plot a line instead
+    def __init__(self, results, method):
+        """
+        Construct a tehuti metrics visualiser.
+
+        The data selected and plots produced are determined by the
+        visualisation method (or state) that the visualiser is constructed
+        with.
+
+        Args:
+
+        * results: (dict)
+            The benchmarking results to visualise. Should be the dictionary of
+            benchmarking results loaded from a Tehuti metrics JSON file.
+        * method: (str)
+            The visualisation method (state) to use. Available states are:
+                * 'basic': plot benchmark results against repository commits
+                           for all supplied metrics.
+                * 'violin': plot benchmark results as a violin plot.
+        """
+        self.results = results
+        self._method = method
+        self.plot_data = None
+
+        self.methods = {'basic': VaryRepoCommit(self),
+                        'violin': Violin(self)}
+
+    @property
+    def method(self):
+        return self.methods[self._method]
+
+    @method.setter
+    def method(self, value):
         try:
-            k = gaussian_kde(d) #calculates the kernel density
-        except ValueError:
-            ax.hlines(d, p-w, p+w)
-        else:
-            line = False
-            m = k.dataset.min() #lower bound of violin
-            M = k.dataset.max() #upper bound of violin
-            x = arange(m,M,(M-m)/100.) # support for violin
-            v = k.evaluate(x) #violin profile (density curve)
-            v = v/v.max()*w #scaling the violin to the available space
-            ax.fill_betweenx(x,p,v+p,facecolor='y',alpha=0.3)
-            ax.fill_betweenx(x,p,-v+p,facecolor='y',alpha=0.3)
-    if bp:
-        ax.boxplot(data,notch=1,positions=pos,vert=1)
+            self._method = self.methods[value]
+        except KeyError:
+            msg = 'Vis has no method {!r}.'
+            raise AttributeError(msg.format(value))
 
+    def select_data(self, commits=None, metrics=None):
+        """
+        Select data to plot. Processing is handed off to the `select_data`
+        method of the current state.
 
-def plot(picked, single_id):
-    keys = None
-    for commit, results in picked:
-        if keys is None:
-            keys = results.viewkeys()
-        else:
-            keys = keys & results.viewkeys()
-    for key in keys:
-        if key == 'name' or (single_id and key != single_id):
-            continue
-        labels = []
-        data = []
-        for commit, results in picked:
-            labels.append(shorten_sha(commit))
-            data.append(results[key])
-        ax = plt.axes()
-        ax.set_title(key)
-        if isinstance(data[0], list):
-            violin_plot(ax, data)
-        else:
-            width = 0.6
-            pos = [x - (width / 2) for x in range(len(data))]
-            ax.bar(pos, data, width=width)
-        ax.set_xticks(range(len(data)))
-        ax.set_xticklabels(labels, rotation=30)
-        plt.tight_layout()
-        plt.show()
+        Kwargs:
+
+         * commits:
+            One or more valid repository commits that have been benchmarked.
+            If no commits are specified then all commits found in the
+            benchmarking results will be added to the data to visualise.
+         * metrics:
+            One or more metrics that have results in the metrics results file.
+            If no metrics are specified then all metrics found in the
+            benchmarking results will be added to the data to visualise.
+
+        """
+        self.plot_data = self.method.select_data(commits, metrics)
+
+    def plot(self, alternate_plot=False):
+        """
+        Plot data. Plotting is handed off to the `plot` method of the current
+        state.
+
+        Kwarg:
+
+        * alternate_plot:
+            Toggle to select the alternate plotting mode of the `plot` method
+            of the current state.
+
+        """
+        if self.plot_data is None:
+            self.select_data()
+        self.method.plot(alternate_plot)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--id', help='select a single metric by ID')
-    parser.add_argument('metrics')
-    parser.add_argument('commits', nargs='+')
+    parser.add_argument('plotstyle', choices=['basic', 'violin'],
+                        default='basic')
+    parser.add_argument('module', help='the metrics module to visualise')
+    parser.add_argument('-m', '--metrics', default=None,
+                        help='select metrics to visualise by ID')
+    parser.add_argument('-c', '--commits', nargs='+', default=None)
     options = parser.parse_args()
-    metrics = __import__(options.metrics).metrics
-    results = Results.load(options.metrics)
-    picked = [(commit, results.results[sha(commit)])
-              for commit in options.commits]
-    plot(picked, options.id)
+    module = __import__(options.module).metrics
+    results = Results.load(options.module).results
+    visualiser = Vis(results, options.plotstyle)
+    visualiser.select_data(options.commits, options.metrics)
+    visualiser.plot()
