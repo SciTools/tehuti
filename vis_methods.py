@@ -297,3 +297,165 @@ class Violin(Visualiser):
             ax.set_xticklabels(x_labels, rotation=30)
             ax.set_title(name)
             plt.show()
+
+
+class ManyBenchmarks(Visualiser):
+    """
+    A visualiser state that plots results for two different benchmarks
+    (for example time and accuracy) of the same set of metrics against
+    repository commits for all supplied metrics.
+
+    """
+    def __init__(self, vis):
+        """
+        A visualiser that provides functionality to visualise two benchmarks of
+        tehuti metric results over a series of commits to an underlying
+        GitHub repo.
+
+        Arg:
+
+        * vis:
+            The :class:`tehuti-vis.Vis` class that this class is providing
+            a visualiser state for.
+
+        """
+        self.vis = vis
+
+    def select_data(self, commits, metrics):
+        """
+        The select data method for this state.
+
+        Select and re-format data from the supplied metrics results file.
+
+        Data is selected based on all specified `commits` and `metrics`. Data
+        is formatted into the standard format used by plot states, with
+        specific formatting that converts any single values into one-element
+        lists.
+        If no commits or metrics are specified then all commits or metrics
+        in the supplied metrics results file are selected.
+
+        Args:
+
+        * commit:
+            One or more valid repository commits that have been benchmarked.
+        * metrics:
+            One or more metrics that have results in the metrics results file.
+
+        Returns:
+            The selected data formatted for plotting.
+
+        """
+        commits, metrics = self._select_data_common(commits, metrics)
+        benchmarks = {}.fromkeys([m.split('-')[0] for m in metrics]).keys()
+        metrics = {}.fromkeys([m.split('-', 1)[1] for m in metrics]).keys()
+        if len(benchmarks) > 2:
+            msg = ('Expected two benchmarks to plot together but got {}. '
+                   'They were: {}.')
+            raise ValueError(msg.format(len(benchmarks),
+                                        ', '.join(benchmarks)))
+        data = {}
+        for metric in metrics:
+            data[metric] = {b: None for b in benchmarks}
+            for b in benchmarks:
+                data[metric][b] = {commit: None for commit in commits}
+                for commit in commits:
+                    # Reconstruct original metric name: 'b-metric'.
+                    full_metric = b + '-' + metric
+                    result = self.vis.results[commit][full_metric]
+                    if isinstance(result, list):
+                        data[metric][b][commit] = min(result)
+                    else:
+                        data[metric][b][commit] = result
+        return data
+
+    def _plot_single_axis(self):
+        """
+        Plot the results of all specified metrics onto a single axis.
+
+        Only sets of metrics that all record the same performance benchmark
+        can be plotted on the same axis.
+
+        """
+        plot_data = self.vis.plot_data
+
+        plt.hold('on')
+        ax1 = plt.axes()
+        ax2 = ax1.twinx()
+        plots = None
+        for name, results in plot_data.iteritems():
+            b1 = results[results.keys()[0]]
+            b2 = results[results.keys()[1]]
+            x_labels = ['']
+            x_labels.extend([shorten_sha(k) for k in b1.keys()])
+            x_points = range(0, len(x_labels)+1)
+            b1_values = b1.values()
+            b2_values = b2.values()
+            l1 = results.keys()[0] + '-' + name
+            l2 = results.keys()[1] + '-' + name
+            p1 = ax1.plot(x_points[1:-1], b1_values, label=l1)
+            p2 = ax2.plot(x_points[1:-1], b2_values, '--', label=l2)
+            if plots is None:
+                plots = p1 + p2
+            else:
+                plots += p1
+                plots += p2
+        ax1.set_xticks(x_points)
+        ax1.set_xticklabels(x_labels, rotation=30)
+        ax1.set_ylabel(Y_AXIS_LABELS[results.keys()[0]])
+        ax2.set_ylabel(Y_AXIS_LABELS[results.keys()[1]])
+        ax1.set_title('Multi metrics')
+        labels = [plot.get_label() for plot in plots]
+        plt.legend(plots, labels)
+        plt.show()
+
+    def _plot(self):
+        """
+        Plot the results of each of the specified metrics on their own axis.
+
+        """
+        plot_data = self.vis.plot_data
+        for name, results in plot_data.iteritems():
+            b1 = results[results.keys()[0]]
+            b2 = results[results.keys()[1]]
+            x_labels = ['']
+            x_labels.extend([shorten_sha(k) for k in b1.keys()])
+            x_points = range(0, len(x_labels)+1)
+            b1_values = b1.values()
+            b2_values = b2.values()
+
+            ax1 = plt.axes()
+            ax1.set_title(name)
+            l1 = Y_AXIS_LABELS[results.keys()[0]].split(' ')[0]
+            p = ax1.plot(x_points[1:-1], b1_values, label=l1)
+            ax1.set_xticks(x_points)
+            ax1.set_xticklabels(x_labels, rotation=30)
+            ax1.set_ylabel(Y_AXIS_LABELS[results.keys()[0]])
+
+            ax2 = ax1.twinx()
+            l2 = Y_AXIS_LABELS[results.keys()[1]].split(' ')[0]
+            p2 = ax2.plot(x_points[1:-1], b2_values, '--', label=l2)
+            ax2.set_ylabel(Y_AXIS_LABELS[results.keys()[1]])
+
+            plots = p + p2
+            labels = [plot.get_label() for plot in plots]
+            plt.legend(plots, labels)
+            plt.show()
+
+    def plot(self, alternate_plot):
+        """
+        The plot method for this state.
+
+        Calls a private plotting method (either `_plot` or `_plot_single_axis`)
+        to produce the plots.
+
+        Arg:
+
+        * alternate_plot: (boolean)
+            Toggle to select whether to plot each metric on its own axis or all
+            metrics on the same axis.
+
+        """
+        if alternate_plot:
+            self._plot_single_axis()
+        else:
+            self._plot()

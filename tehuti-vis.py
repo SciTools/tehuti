@@ -18,7 +18,7 @@
 import argparse
 
 from tehuti import Results
-from vis_methods import VaryRepoCommit, Violin
+from vis_methods import VaryRepoCommit, Violin, ManyBenchmarks
 
 
 class Vis(object):
@@ -42,13 +42,17 @@ class Vis(object):
                 * 'basic': plot benchmark results against repository commits
                            for all supplied metrics.
                 * 'violin': plot benchmark results as a violin plot.
+                * 'many': plot multiple benchmarks on a single plot.
+
         """
         self.results = results
         self._method = method
         self.plot_data = None
 
         self.methods = {'basic': VaryRepoCommit(self),
-                        'violin': Violin(self)}
+                        'violin': Violin(self),
+                        'many': ManyBenchmarks(self),
+                        }
 
     @property
     def method(self):
@@ -99,8 +103,10 @@ class Vis(object):
 
 
 if __name__ == '__main__':
+    choices = ['basic', 'violin', 'many',
+               'basic-oneplot', 'violin-boxplot', 'many-oneplot']
     parser = argparse.ArgumentParser()
-    parser.add_argument('plotstyle', choices=['basic', 'violin'],
+    parser.add_argument('plotstyle', choices=choices,
                         default='basic')
     parser.add_argument('module', help='the metrics module to visualise')
     parser.add_argument('-m', '--metrics', default=None,
@@ -109,6 +115,10 @@ if __name__ == '__main__':
     options = parser.parse_args()
     module = __import__(options.module).metrics
     results = Results.load(options.module).results
-    visualiser = Vis(results, options.plotstyle)
+    try:
+        method, alternate = options.plotstyle.split('-')[0], True
+    except ValueError:
+        method, alternate = options.plotstyle, False
+    visualiser = Vis(results, method)
     visualiser.select_data(options.commits, options.metrics)
-    visualiser.plot()
+    visualiser.plot(alternate)
