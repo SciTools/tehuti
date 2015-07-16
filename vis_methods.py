@@ -346,6 +346,7 @@ class ManyBenchmarks(Visualiser):
 
         """
         commits, metrics = self._select_data_common(commits, metrics)
+        # Get unique benchmarks and metrics.
         benchmarks = {}.fromkeys([m.split('-')[0] for m in metrics]).keys()
         metrics = {}.fromkeys([m.split('-', 1)[1] for m in metrics]).keys()
         if len(benchmarks) > 2:
