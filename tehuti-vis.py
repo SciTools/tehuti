@@ -18,7 +18,7 @@
 import argparse
 
 from tehuti import Results
-from vis_methods import VaryRepoCommit, Violin, ManyBenchmarks
+from vis_methods import VaryRepoCommit, Violin, ManyBenchmarks, VarySetup
 
 
 class Vis(object):
@@ -52,6 +52,7 @@ class Vis(object):
         self.methods = {'basic': VaryRepoCommit(self),
                         'violin': Violin(self),
                         'many': ManyBenchmarks(self),
+                        'setup': VarySetup(self),
                         }
 
     @property
@@ -103,22 +104,25 @@ class Vis(object):
 
 
 if __name__ == '__main__':
-    choices = ['basic', 'violin', 'many',
-               'basic-oneplot', 'violin-boxplot', 'many-oneplot']
+    choices = ['basic', 'violin', 'many', 'setup',
+               'basic-oneplot', 'violin-boxplot', 'many-oneplot',
+               'setup-oneplot']
     parser = argparse.ArgumentParser()
     parser.add_argument('plotstyle', choices=choices,
                         default='basic')
     parser.add_argument('module', help='the metrics module to visualise')
-    parser.add_argument('-m', '--metrics', default=None,
+    parser.add_argument('-m', '--metrics', default=None, nargs='+',
                         help='select metrics to visualise by ID')
     parser.add_argument('-c', '--commits', nargs='+', default=None)
     options = parser.parse_args()
     module = __import__(options.module).metrics
     results = Results.load(options.module).results
     try:
-        method, alternate = options.plotstyle.split('-')[0], True
+        method, alternate = options.plotstyle.split('-')
     except ValueError:
         method, alternate = options.plotstyle, False
+    else:
+        alternate = True
     visualiser = Vis(results, method)
     visualiser.select_data(options.commits, options.metrics)
     visualiser.plot(alternate)
