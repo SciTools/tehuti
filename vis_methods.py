@@ -15,6 +15,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Tehuti.  If not, see <http://www.gnu.org/licenses/>.
+from collections import OrderedDict
 import warnings
 
 import matplotlib.pyplot as plt
@@ -39,6 +40,8 @@ class Visualiser(object):
             commits = self.vis.results.keys()
         elif isinstance(commit, basestring):
             commits = list(commit)
+        else:
+            commits = commit
         if metrics is None:
             # Only choose metrics that show up in all runs.
             keys = None
@@ -448,6 +451,156 @@ class ManyBenchmarks(Visualiser):
 
         Calls a private plotting method (either `_plot` or `_plot_single_axis`)
         to produce the plots.
+
+        Arg:
+
+        * alternate_plot: (boolean)
+            Toggle to select whether to plot each metric on its own axis or all
+            metrics on the same axis.
+
+        """
+        if alternate_plot:
+            self._plot_single_axis()
+        else:
+            self._plot()
+
+
+class VarySetup(Visualiser):
+    """
+    A visualiser state that plots the result of varying the setup of a common
+    tehuti metric. This allows for a performance comparison of different
+    methods used to perform a given function.
+
+    Metric results may either be plotted each on individual axes, or all on the
+    same axes.
+
+    """
+    def __init__(self, vis):
+        """
+        A visualiser that provides functionality to visualise tehuti metric
+        results over a series of setups used to produce the results.
+
+        Arg:
+
+        * vis:
+            The :class:`tehuti-vis.Vis` class that this class is providing
+            a visualiser state for.
+
+        """
+        self.vis = vis
+
+    def select_data(self, commits, metrics):
+        """
+        The select data method for this state.
+
+        Select and re-format data from the supplied metrics results file.
+
+        Data is selected based on all specified `commits` and `metrics`. Data
+        is formatted into the standard format used by plot states, with
+        specific formatting that collapses any lists of values into the single
+        minimum value in that list.
+        If no commits or metrics are specified then all commits or metrics
+        in the supplied metrics results file are selected.
+
+        Args:
+
+        * commit:
+            One or more valid repository commits that have been benchmarked.
+        * metrics:
+            One or more metrics that have results in the metrics results file.
+
+        Returns:
+            The selected data formatted for plotting.
+
+        """
+        commits, metrics = self._select_data_common(commits, metrics)
+        # Get unique benchmarks.
+        benchmarks = {}.fromkeys([m.split('-')[0] for m in metrics]).keys()
+        # We want all metrics, but without the leading benchmark reference.
+        metrics = [m.split('-', 1)[1] for m in metrics]
+        data = {}
+
+        for b in benchmarks:
+            data[b] = {commit: None for commit in commits}
+            for commit in commits:
+                # We need to retain the order we receive the metrics in.
+                data[b][commit] = OrderedDict.fromkeys(metrics)
+                for metric in metrics:
+                    # Reconstruct original metric name: 'b-metric'.
+                    full_metric = b + '-' + metric
+                    result = self.vis.results[commit][full_metric]
+                    if isinstance(result, list):
+                        data[b][commit][metric] = min(result)
+                    else:
+                        data[b][commit][metric] = result
+        return data
+
+    def _plot_single_axis(self):
+        """
+        For each benchmarking setup in the plot data, plot the results of all
+        specified metrics from two or more commits to the underlying repo onto
+        a single axis.
+
+        """
+        plot_data = self.vis.plot_data
+
+        plt.hold('on')
+        ax = plt.axes()
+        for name, inter in plot_data.iteritems():
+            for commit, results in inter.iteritems():
+                # Pad the start of the labels list.
+                x_labels = ['']
+                x_labels.extend([metric for metric in results])
+                x_points = range(0, len(x_labels)+1)
+                values = results.values()
+                ax.plot(x_points[1:-1], values, label=shorten_sha(commit))
+        metric_unit = Y_AXIS_LABELS[name]
+        ax.set_xticks(x_points)
+        ax.set_xticklabels(x_labels, rotation=30)
+        ax.set_ylabel(metric_unit)
+        ax.set_title('{} metrics'.format(metric_unit.split(' ')[0]))
+        ax.legend()
+        plt.show()
+
+    def _plot(self):
+        """
+        Plot the results of all specified metrics for each commit and
+        benchmarking setup on their own axis.
+
+        """
+        plot_data = self.vis.plot_data
+        for name, inter in plot_data.iteritems():
+            metric_unit = Y_AXIS_LABELS[name]
+            for commit, results in inter.iteritems():
+                # Pad the start of the labels list.
+                x_labels = ['']
+                x_labels.extend([metric for metric in results])
+                x_points = range(0, len(x_labels)+1)
+                values = results.values()
+
+                ax = plt.axes()
+                title = '{} metrics ({})'
+                ax.set_title(title.format(metric_unit.split(' ')[0],
+                                          shorten_sha(commit)))
+                ax.plot(x_points[1:-1], values)
+                ax.set_xticks(x_points)
+                ax.set_xticklabels(x_labels, rotation=30)
+                ax.set_ylabel(Y_AXIS_LABELS[name])
+                plt.show()
+
+    def plot(self, alternate_plot):
+        """
+        The plot method for this state.
+
+        Calls a private plotting method (either `_plot` or `_plot_single_axis`)
+        to produce the plots.
+
+        Note that the benchmarking setup references are unordered. However the
+        order is common in all repository commits, so data from multiple
+        commits will be plotted on the correct point on the x-axis. Specify the
+        full set of benchmarking methods in an appropriate order to the
+        `metrics` command-line argument to tehuti-vis to define the order to
+        plot the benchmarking setup references in.
 
         Arg:
 
